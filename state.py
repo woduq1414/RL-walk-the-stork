@@ -10,7 +10,7 @@ class State:
     def __init__(self, monitor):
 
         self.monitor = monitor
-        self.head = cv2.imread("head.jpeg",cv2.IMREAD_GRAYSCALE)
+        self.head = cv2.imread("./images/head.jpeg",cv2.IMREAD_GRAYSCALE)
         self.sct = mss.mss()
         self.temp_result_value = 0
 

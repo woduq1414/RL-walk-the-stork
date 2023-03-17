@@ -1,21 +1,23 @@
 from stable_baselines3 import DDPG
 from stable_baselines3.common.env_util import make_vec_env
+
+from callback import SaveOnBestTrainingRewardCallback
 from env import BirdEnv
 
-from stable_baselines3.common.noise import NormalActionNoise
-import numpy as np
-from stable_baselines3.common.callbacks import CheckpointCallback
+TRAIN_FROM_SCRATCH = True
 
-checkpoint_callback = CheckpointCallback(save_freq=5000, save_path='./model_checkpoints/')
+
 bird_env = make_vec_env(BirdEnv, n_envs=1)
+callback = SaveOnBestTrainingRewardCallback(log_dir="tmp/")
+#
 
-action_noise = NormalActionNoise(mean=np.zeros(1), sigma=0.1 * np.ones(1))
+if TRAIN_FROM_SCRATCH:
+    model = DDPG('MlpPolicy', bird_env, verbose=1, learning_rate= 0.0005, learning_starts=300, batch_size=200, seed=0
+                )
 
+else:
 
-model = DDPG('MlpPolicy', bird_env, verbose=1, learning_rate= 0.0005, learning_starts=200, batch_size=200, seed=0
-            )
+    model = DDPG.load("./model_checkpoints/rl_model_45000_steps.zip", env=bird_env, learning_starts = 0, learning_rate=0.0003)
 
-# model = PPO.load("birdai", env=bird_env)
-
-model.learn(total_timesteps=(100000), progress_bar=True, callback=checkpoint_callback)
-model.save("birdai")
+model.learn(total_timesteps=(100000), progress_bar=True, callback=callback)
+# model.save("birdai")

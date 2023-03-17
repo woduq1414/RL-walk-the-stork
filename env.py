@@ -21,6 +21,10 @@ import win32com.client as client
 import pyautogui
 from config import Config
 import cv2
+import csv
+
+import pyformulas as pf
+import matplotlib.pyplot as plt
 
 
 class BirdEnv(gym.Env):
@@ -29,8 +33,19 @@ class BirdEnv(gym.Env):
     def __init__(self):
         config = Config()
         # define hparams
+
+        # self.fig, self.ax1 = plt.subplots()
+        # self.ax2 = self.ax1.twinx()
+        #
+        # plt.tight_layout()
+        # canvas = np.zeros((480, 640))
+        # self.screen = pf.screen(canvas, 'Plot')
+
         self.episode = 1
         self.score = 0
+
+        self.start_time = None
+
         self.reward_sum = 0
 
         self.frame_skip = (2, 5)
@@ -60,6 +75,56 @@ class BirdEnv(gym.Env):
         self.observation_space = spaces.Box(low=0, high=1, shape=(3,), dtype=float)
 
         self.prev_observation = None
+
+        self.head_pos_buffer = deque(maxlen=4)
+
+        self.left_end = 0.03
+        self.right_end = 0.93
+        self.center = 0.6117
+
+        self.right_coef = 3 / ((self.right_end - self.center) ** 2)
+        self.left_coef = 3 / ((self.center - self.left_end) ** 2)
+
+        self.csv_field_names = ["Episode", "Time", "Reward Sum"]
+        self.csv_file_name = f"./result_csv/result_{int(datetime.now().timestamp())}.csv"
+        self.csv_writer = None
+
+        self.result_dict = {
+            "Episode": [],
+            "Time": [],
+            "Reward Sum": []
+        }
+
+        self.make_csv()
+
+    def make_csv(self):
+        self.csv_file = open(self.csv_file_name, "a", newline='')
+        self.csv_writer = csv.DictWriter(self.csv_file, fieldnames=self.csv_field_names)
+        self.csv_writer.writeheader()
+        self.csv_file.close()
+
+    def write_csv(self, episode, survived_time, reward_sum):
+
+        with open(self.csv_file_name, "a", newline='') as self.csv_file:
+            self.csv_writer = csv.DictWriter(self.csv_file, fieldnames=self.csv_field_names)
+            self.csv_writer.writerow({"Episode": episode, "Time": survived_time, "Reward Sum": reward_sum})
+
+    def plot_result(self, episode, survived_time, reward_sum):
+
+        plt.cla()
+
+        self.ax1.plot(self.result_dict["Episode"], self.result_dict["Time"], label="Time", color='green',
+                      markersize=2, linewidth=1, linestyle='-')
+
+        self.ax2.plot(self.result_dict["Episode"], self.result_dict["Reward Sum"], label="Reward Sum",
+                      color='red', markersize=2, linewidth=1, linestyle='-')
+        # plt.plot(episode, reward_sum, label = "Reward")
+
+        self.fig.canvas.draw()
+        image = np.fromstring(self.fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        image = image.reshape(self.fig.canvas.get_width_height()[::-1] + (3,))
+
+        self.screen.update(image)
 
     def get_window_info(self, window_name="Ruffle - bird.swf"):
 
@@ -104,8 +169,7 @@ class BirdEnv(gym.Env):
 
         if self.score == 0:
             self.action.start_game()
-
-
+            self.start_time = time.time()
 
         self.action.send_key(key_num)
 
@@ -115,33 +179,57 @@ class BirdEnv(gym.Env):
 
         if is_over:
             # print(self.score, self.reward_sum)
+            end_time = time.time()
+            survived_time = end_time - self.start_time
+
+            self.result_dict["Episode"].append(self.episode)
+            self.result_dict["Time"].append(survived_time)
+            self.result_dict["Reward Sum"].append(self.reward_sum)
 
             if self.max_score < self.score:
                 self.max_score = self.score
 
                 if self.max_score >= 100:
-                    print(f"New Record !! Episode {self.episode} : Frame - {self.score} / Reward - {self.reward_sum}")
+                    print(
+                        f"New Record !! Episode {self.episode} : Time - {int(survived_time * 1000)}ms / Reward - {self.reward_sum}")
                     time.sleep(2)
-                    file_name = f'./screenshots/{self.episode}_{self.score}_{int(self.reward_sum)}.png'
+                    file_name = f'./screenshots/{self.episode}_{int(survived_time * 1000)}_{int(self.reward_sum)}.png'
                     print(f"Saving to {file_name} ...")
                     cv2.imwrite(file_name, cv2.cvtColor(self.state.screenshot(), cv2.COLOR_RGB2BGR))
 
                     time.sleep(1)
+                else:
+                    print(f"Episode {self.episode} : Time - {int(survived_time * 1000)}ms / Reward - {self.reward_sum}")
             else:
                 if self.episode % 1 == 0:
-                    print(f"Episode {self.episode} : Frame - {self.score} / Reward - {self.reward_sum}")
-
+                    print(f"Episode {self.episode} : Time - {int(survived_time * 1000)}ms / Reward - {self.reward_sum}")
 
             observation = self.prev_observation
             reward = 0
             self.episode += 1
+
+            self.write_csv(self.episode, survived_time, self.reward_sum)
+            # self.plot_result(self.episode, survived_time, self.reward_sum)
+
         else:
             self.score += 1
 
-            if observation[0] > 0.66666:
-                reward = 3 - ((observation[0] - 0.666666) ** 2) * 27
+            # 0.03 0.6117 0.93
+
+            if observation[0] > self.center:
+                if observation[0] < self.center + (self.right_end - self.center) * 0.15:
+                    reward = 3
+                else:
+                    reward = 3 - ((observation[0] - self.center) ** 2) * self.right_coef
             else:
-                reward = 3 - ((0.66666 - observation[0]) ** 2) * 6.5
+
+                if observation[0] > self.center - (self.center - self.left_end) * 0.15:
+                    reward = 3
+                else:
+                    reward = 3 - ((self.center - observation[0]) ** 2) * self.left_coef
+
+            # print(reward)
+            self.head_pos_buffer.append(observation[0])
 
             # if 0.66666 - 0.12 < observation[0] < 0.66666 + 0.08:
             #     reward = 3
@@ -155,9 +243,10 @@ class BirdEnv(gym.Env):
             self.reward_sum += reward
 
         if self.prev_observation is None:
-            observation = [observation[0], 0, max(self.score / 2000, 1)]
+             observation = [observation[0], 0, min(self.score / 2000, 1)]
         else:
-            observation = [observation[0], observation[0] - self.prev_observation[0], max(self.score / 2000, 1)]
+            observation = [observation[0], observation[0] - self.head_pos_buffer[0], min(self.score / 2000, 1)]
+            # print([observation[0], observation[0] - self.head_pos_buffer[0], min(self.score / 2000, 1)])
 
         self.prev_observation = observation
         # print(observation, reward, self.state.is_over())
@@ -173,7 +262,9 @@ class BirdEnv(gym.Env):
         self.reward_sum = 0
         # self.com_score = 0
         # self.my_score = 0
+        self.prev_observation = None
         self.action.reset_game()
+        self.head_pos_buffer.clear()
 
     def start_game(self):
         self.action.start_game()

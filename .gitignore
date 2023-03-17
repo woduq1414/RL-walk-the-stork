@@ -160,5 +160,8 @@ cython_debug/
 .idea/
 
 test.py
+test2.py
 model_checkpoints/
 screenshots/
+result_csv/
+tmp/
