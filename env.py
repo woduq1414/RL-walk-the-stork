@@ -217,14 +217,14 @@ class BirdEnv(gym.Env):
             # 0.03 0.6117 0.93
 
             if observation[0] > self.center:
-                if observation[0] < self.center + (self.right_end - self.center) * 0.15:
-                    reward = 3
+                if observation[0] < self.center + (self.right_end - self.center) * 0.25:
+                    reward = 4
                 else:
                     reward = 3 - ((observation[0] - self.center) ** 2) * self.right_coef
             else:
 
-                if observation[0] > self.center - (self.center - self.left_end) * 0.15:
-                    reward = 3
+                if observation[0] > self.center - (self.center - self.left_end) * 0.25:
+                    reward = 4
                 else:
                     reward = 3 - ((self.center - observation[0]) ** 2) * self.left_coef
 
@@ -243,14 +243,13 @@ class BirdEnv(gym.Env):
             self.reward_sum += reward
 
         if self.prev_observation is None:
-             observation = [observation[0], 0, min(self.score / 2000, 1)]
+            observation = [observation[0], 0, min(self.score / 2000, 1)]
         else:
             observation = [observation[0], observation[0] - self.head_pos_buffer[0], min(self.score / 2000, 1)]
             # print([observation[0], observation[0] - self.head_pos_buffer[0], min(self.score / 2000, 1)])
 
         self.prev_observation = observation
-        # print(observation, reward, self.state.is_over())
-        return observation, reward, is_over, {"hello": "world"}
+        return observation, reward, is_over, {"info": ""}
 
     def close(self):
         if self.viewer is not None:
@@ -260,8 +259,7 @@ class BirdEnv(gym.Env):
     def reset_game(self):
         self.score = 0
         self.reward_sum = 0
-        # self.com_score = 0
-        # self.my_score = 0
+
         self.prev_observation = None
         self.action.reset_game()
         self.head_pos_buffer.clear()

@@ -21,22 +21,18 @@ class Action:
         self.y = monitor["top"]
 
     def send_key(self, action):
-        # print(action[0])
+        print(action[0])
         # return
 
         if -0.3 < action[0] < 0.3:
             pass
         else:
             self.shell.AppActivate(self.window_name)
-
             action_type = 1 if action[0] < 0 else 2
             win32api.keybd_event(self.key_map[action_type], 0, 0, 0)
-
-            # time.sleep(0.02 if abs(action[0]) >= 0.6 else 0.01)
-            # time.sleep(-(abs(action[0]) - 0.3) / 70 + 0.02)
-            time.sleep((abs(action[0]) - 0.3) / 60 + 0.01)
+            time.sleep((abs(action[0]) - 0.3) / 70 + 0.01)
             win32api.keybd_event(self.key_map[action_type], 0, win32con.KEYEVENTF_KEYUP, 0)
-            time.sleep(0.01)
+            time.sleep(0.015)
 
         # if key != 0:
         #     self.shell.AppActivate(self.window_name)
